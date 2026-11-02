@@ -179,6 +179,51 @@ describe('WaitForHelper', () => {
       );
 
       assert.strictEqual(result.navigatedToUrl, targetUrl);
+      assert.strictEqual(result.sameDocument, false);
+    });
+  });
+
+  it('captures a reload that keeps the URL', async () => {
+    await withMcpContext(async (response, context) => {
+      server.addHtmlRoute('/nav-reload', html`<main>reload</main>`);
+      const url = server.getRoute('/nav-reload');
+      const mcpPage = context.getSelectedMcpPage();
+      await mcpPage.pptrPage.goto(url);
+
+      const result = await mcpPage.waitForEventsAfterAction(
+        async () => {
+          await mcpPage.pptrPage.evaluate(() => {
+            setTimeout(() => location.reload(), 0);
+          });
+        },
+        {waitForStableDom: false, expectNavigationIn: 1000},
+      );
+
+      assert.strictEqual(result.navigatedToUrl, url);
+      assert.strictEqual(result.sameDocument, false);
+    });
+  });
+
+  it('captures a history navigation back to another document', async () => {
+    await withMcpContext(async (response, context) => {
+      server.addHtmlRoute('/nav-back-start', html`<main>start</main>`);
+      server.addHtmlRoute('/nav-back-next', html`<main>next</main>`);
+      const startUrl = server.getRoute('/nav-back-start');
+      const mcpPage = context.getSelectedMcpPage();
+      await mcpPage.pptrPage.goto(startUrl);
+      await mcpPage.pptrPage.goto(server.getRoute('/nav-back-next'));
+
+      const result = await mcpPage.waitForEventsAfterAction(
+        async () => {
+          await mcpPage.pptrPage.evaluate(() => {
+            setTimeout(() => history.back(), 0);
+          });
+        },
+        {waitForStableDom: false, expectNavigationIn: 1000},
+      );
+
+      assert.strictEqual(result.navigatedToUrl, startUrl);
+      assert.strictEqual(result.sameDocument, false);
     });
   });
 
@@ -201,6 +246,26 @@ describe('WaitForHelper', () => {
       );
 
       assert.strictEqual(result.navigatedToUrl, targetUrl);
+      assert.strictEqual(result.sameDocument, true);
+    });
+  });
+
+  it('does not capture navigatedToUrl for same-document navigation to the same URL', async () => {
+    await withMcpContext(async (response, context) => {
+      server.addHtmlRoute('/nav-replace', html`<main>replace</main>`);
+      const mcpPage = context.getSelectedMcpPage();
+      await mcpPage.pptrPage.goto(server.getRoute('/nav-replace'));
+
+      const result = await mcpPage.waitForEventsAfterAction(
+        async () => {
+          await mcpPage.pptrPage.evaluate(() => {
+            history.replaceState({}, '', location.href);
+          });
+        },
+        {waitForStableDom: false},
+      );
+
+      assert.strictEqual(result.navigatedToUrl, undefined);
     });
   });
 

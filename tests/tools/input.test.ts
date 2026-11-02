@@ -173,6 +173,40 @@ describe('input', () => {
       });
     });
 
+    it('reports a same-document navigation when click follows a fragment link', async () => {
+      server.addHtmlRoute(
+        '/start-fragment',
+        html`<a href="#details">Jump to details</a>`,
+      );
+
+      await withMcpContext(async (response, context, args) => {
+        const page = context.getSelectedMcpPage().pptrPage;
+        await page.goto(server.getRoute('/start-fragment'));
+        context.getSelectedMcpPage().textSnapshot = await TextSnapshot.create(
+          context.getSelectedMcpPage(),
+        );
+        await click(args).handler(
+          {
+            params: {
+              uid: '1_2',
+            },
+            page: context.getSelectedMcpPage(),
+          },
+          response,
+          context,
+        );
+        const result = await response.handle(context);
+        const textContent = getTextContent(result.content[0]);
+        const expectedUrl = server.getRoute('/start-fragment') + '#details';
+        assert.ok(
+          textContent.includes(
+            `Page navigated to ${expectedUrl} within the same document.`,
+          ),
+          `Expected a same-document navigation to ${expectedUrl}, got: ${textContent}`,
+        );
+      });
+    });
+
     it('does not report navigation when click does not navigate', async () => {
       await withMcpContext(async (response, context, args) => {
         const page = context.getSelectedMcpPage().pptrPage;
